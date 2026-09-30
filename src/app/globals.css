@@ -1,0 +1,73 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Neutral surfaces and base colors */
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --surface: #ffffff;
+  --surface-subtle: #f1f5f9;
+  --surface-hover: #f8fafc;
+
+  /* Borders - crisp 1px lines */
+  --border: #e2e8f0;
+  --border-subtle: #f1f5f9;
+  --border-strong: #cbd5e1;
+
+  /* Muted text and elements */
+  --muted: #f1f5f9;
+  --muted-foreground: #64748b;
+
+  /* Primary accent: high-restraint dark slate */
+  --accent: #0f172a;
+  --accent-foreground: #ffffff;
+
+  /* Semantic status colors - used strictly for meaning */
+  /* HOT leads (>= 70) */
+  --status-hot-bg: #ecfdf5;
+  --status-hot-text: #065f46;
+  --status-hot-border: #a7f3d0;
+  --status-hot-dot: #10b981;
+
+  /* WARM leads (40-69) */
+  --status-warm-bg: #fffbeb;
+  --status-warm-text: #92400e;
+  --status-warm-border: #fde68a;
+  --status-warm-dot: #f59e0b;
+
+  /* COLD leads (< 40) */
+  --status-cold-bg: #f8fafc;
+  --status-cold-text: #475569;
+  --status-cold-border: #e2e8f0;
+  --status-cold-dot: #94a3b8;
+
+  /* Attention / Overdue Follow-up (> 2 days inactive) */
+  --status-attention-bg: #fff1f2;
+  --status-attention-text: #9f1239;
+  --status-attention-border: #fecdd3;
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Custom scrollbars for dense data panels */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
