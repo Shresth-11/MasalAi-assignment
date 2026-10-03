@@ -6,7 +6,7 @@ import { StatusBadge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { LeadChat } from "./lead-chat";
 import { CallCoachModal } from "./call-coach-modal";
-import { getLocalLeads, getLocalAnalysis, saveLocalLead } from "@/lib/local-leads";
+import { getLocalLeads, getLocalAnalysis, saveLocalLead, getLocalDebriefs, getLocalScoreHistory } from "@/lib/local-leads";
 import {
   ArrowLeft,
   Copy,
@@ -42,55 +42,92 @@ export function LeadDetail({ leadId, onBack, isSplitView = false }: LeadDetailPr
 
   const fetchLeadData = async () => {
     setIsLoading(true);
-    let loaded = false;
+    let serverLead: Lead | null = null;
+    let serverAnalysis: LeadAnalysis | null = null;
+    let serverMessages: LeadMessage[] = [];
+    let serverDebriefs: CallDebrief[] = [];
+    let serverScoreHistory: ScoreHistoryEntry[] = [];
 
     try {
       const res = await fetch(`/api/leads/${leadId}`);
       if (res.ok) {
         const data = await res.json();
-        setLead(data.lead);
-        setAnalysis(data.analysis);
-        setMessages(data.messages || []);
-        setDebriefs(data.debriefs || []);
-        setScoreHistory(data.scoreHistory || []);
-        loaded = true;
+        serverLead = data.lead;
+        serverAnalysis = data.analysis;
+        serverMessages = data.messages || [];
+        serverDebriefs = data.debriefs || [];
+        serverScoreHistory = data.scoreHistory || [];
       }
     } catch (err) {
       console.warn("API lead fetch failed, checking local storage:", err);
     }
 
-    if (!loaded) {
-      // Fallback to local storage
-      try {
-        const localLeads = getLocalLeads();
-        const found = localLeads.find((l) => l.id === leadId);
-        if (found) {
-          setLead(found);
-          const foundAnalysis = getLocalAnalysis(leadId);
-          setAnalysis(foundAnalysis);
-          setMessages([]);
-          setDebriefs([]);
-          setScoreHistory([
-            {
-              id: "hist_" + found.id,
-              leadId: found.id,
-              score: found.score,
-              tag: found.tag,
-              reason: "Initial AI analysis",
-              createdAt: found.createdAt,
-            },
-          ]);
-        }
-      } catch (e) {
-        console.error("Local storage fallback error:", e);
+    const localLeads = getLocalLeads();
+    const localLead = localLeads.find((l) => l.id === leadId);
+    const localAnalysis = getLocalAnalysis(leadId);
+    const localDebriefs = getLocalDebriefs(leadId);
+    const localHistory = getLocalScoreHistory(leadId);
+
+    // Pick the most up-to-date lead (local lead takes precedence if updated locally or not on server)
+    let leadToUse = serverLead;
+    let analysisToUse = serverAnalysis;
+
+    if (localLead) {
+      if (!serverLead || new Date(localLead.updatedAt).getTime() >= new Date(serverLead.updatedAt).getTime()) {
+        leadToUse = localLead;
+        if (localAnalysis) analysisToUse = localAnalysis;
       }
     }
+
+    setLead(leadToUse);
+    setAnalysis(analysisToUse);
+    setMessages(serverMessages);
+
+    // Combine and deduplicate debriefs (local + server)
+    const debriefMap = new Map<string, CallDebrief>();
+    for (const d of localDebriefs) debriefMap.set(d.id, d);
+    for (const d of serverDebriefs) {
+      if (!debriefMap.has(d.id)) debriefMap.set(d.id, d);
+    }
+    const combinedDebriefs = Array.from(debriefMap.values()).sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+    setDebriefs(combinedDebriefs);
+
+    // Combine and deduplicate score history (local + server)
+    const historyMap = new Map<string, ScoreHistoryEntry>();
+    for (const h of localHistory) historyMap.set(h.id, h);
+    for (const h of serverScoreHistory) {
+      if (!historyMap.has(h.id)) historyMap.set(h.id, h);
+    }
+    if (leadToUse && historyMap.size === 0) {
+      historyMap.set("hist_" + leadToUse.id, {
+        id: "hist_" + leadToUse.id,
+        leadId: leadToUse.id,
+        score: leadToUse.score,
+        tag: leadToUse.tag,
+        reason: "Initial AI analysis",
+        createdAt: leadToUse.createdAt,
+      });
+    }
+    const combinedHistory = Array.from(historyMap.values()).sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+    setScoreHistory(combinedHistory);
 
     setIsLoading(false);
   };
 
   useEffect(() => {
     fetchLeadData();
+  }, [leadId]);
+
+  useEffect(() => {
+    const handleUpdate = () => {
+      fetchLeadData();
+    };
+    window.addEventListener("masal_leads_updated", handleUpdate);
+    return () => window.removeEventListener("masal_leads_updated", handleUpdate);
   }, [leadId]);
 
   const handleReanalyze = async () => {

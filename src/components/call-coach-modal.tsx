@@ -4,7 +4,11 @@ import React, { useState, useEffect, useRef } from "react";
 import { Lead, LeadAnalysis } from "@/db/schema";
 import { Button } from "./ui/button";
 import { StatusBadge } from "./ui/badge";
-import { saveLocalLead } from "@/lib/local-leads";
+import {
+  saveLocalLead,
+  saveLocalDebrief,
+  saveLocalScoreHistory,
+} from "@/lib/local-leads";
 import {
   Phone,
   Mic,
@@ -67,6 +71,8 @@ export function CallCoachModal({ isOpen, onClose, lead, analysis, onDebriefCompl
   const [isProcessingDebrief, setIsProcessingDebrief] = useState(false);
   const [checkedCommitments, setCheckedCommitments] = useState<Record<number, boolean>>({});
   const [debriefResult, setDebriefResult] = useState<{
+    previousScore?: number;
+    previousTag?: string;
     newScore: number;
     newTag: string;
     changeSummary: string;
@@ -253,7 +259,13 @@ export function CallCoachModal({ isOpen, onClose, lead, analysis, onDebriefCompl
         throw new Error(data.error || "Failed to process call debrief");
       }
       if (data.updatedLead) {
-        saveLocalLead(data.updatedLead);
+        saveLocalLead(data.updatedLead, data.updatedAnalysis);
+      }
+      if (data.debrief) {
+        saveLocalDebrief(lead.id, data.debrief);
+      }
+      if (data.scoreHistoryEntry) {
+        saveLocalScoreHistory(lead.id, data.scoreHistoryEntry);
       }
       setDebriefResult(data);
       setCheckedCommitments({});
@@ -273,7 +285,8 @@ export function CallCoachModal({ isOpen, onClose, lead, analysis, onDebriefCompl
 
   if (!isOpen) return null;
 
-  const scoreDiff = debriefResult ? debriefResult.newScore - lead.score : 0;
+  const previousScoreToCompare = debriefResult?.previousScore ?? lead.score;
+  const scoreDiff = debriefResult ? debriefResult.newScore - previousScoreToCompare : 0;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
@@ -545,11 +558,19 @@ export function CallCoachModal({ isOpen, onClose, lead, analysis, onDebriefCompl
                         {debriefResult.changeSummary}
                       </p>
                       <div className="flex items-center gap-1.5 mt-0.5 text-xs text-slate-600">
-                        <span>Original: {lead.score}</span>
+                        <span>Original: {previousScoreToCompare}</span>
                         <ArrowRight className="h-3 w-3 text-slate-400" />
                         <span>New score: {debriefResult.newScore}</span>
-                        <span className="font-semibold text-slate-800">
-                          ({scoreDiff >= 0 ? `+${scoreDiff}` : scoreDiff} pts)
+                        <span
+                          className={`font-semibold ${
+                            scoreDiff > 0
+                              ? "text-emerald-700"
+                              : scoreDiff < 0
+                              ? "text-rose-700"
+                              : "text-slate-800"
+                          }`}
+                        >
+                          ({scoreDiff > 0 ? `+${scoreDiff}` : scoreDiff} pts)
                         </span>
                       </div>
                     </div>

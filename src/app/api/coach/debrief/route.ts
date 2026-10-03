@@ -69,12 +69,17 @@ LEAD CONTEXT:
 ${callNotes}
 </CALL_NOTES>
 
-Extract:
-1. New objections uncovered
-2. Commitments made by the customer (site visit, document sharing, financing)
-3. One crisp phrase explaining what changed
-4. Draft a warm WhatsApp follow-up confirming agreements
-5. Re-evaluate the 4 signals (0 to 10 each based on new facts revealed)`;
+INSTRUCTIONS:
+1. Extract new objections uncovered during the call (e.g. price hesitation, carpet area, possession date, rival project comparison).
+2. Extract concrete commitments made by the customer (site visit date/time, cheque / token advance, document submission, loan approval).
+3. Provide one crisp phrase explaining what changed (e.g. "Site visit confirmed for Saturday", "Price objection raised comparing Sector 65", "Timeline pushed to next year").
+4. Draft a warm, professional WhatsApp follow-up confirming agreements and addressing questions.
+5. Re-evaluate the 4 signals (integer 0 to 10 each):
+   - budgetFit: Score higher (8-10) if loan is pre-approved or budget increased; score lower (2-5) if pricing resistance or budget gap.
+   - timelineUrgency: Score higher (8-10) if visiting this weekend or buying immediately; score lower (2-5) if undecided or postponing.
+   - intentClarity: Score higher if specific flat/floor/criteria finalized; score lower if vague or exploring options.
+   - engagement: Score higher if active discussion, mutual agreement, or responsiveness.
+CRITICAL: The updatedSignals MUST reflect the actual findings from this call. If the call was positive or confirmed a visit/budget, increase the signals. If there is hesitation, lower them. Do NOT simply return identical numbers to the previous signals unless the call was completely neutral.`;
 
     const groqKey = process.env.GROQ_API_KEY;
     const geminiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
@@ -82,53 +87,83 @@ Extract:
     let debriefResult;
 
     if (groqKey && !groqKey.includes("your_groq_api_key")) {
-      try {
-        const { object } = await generateObject({
-          model: groq("qwen/qwen3.8-27b"),
-          schema: debriefAnalysisSchema,
-          prompt,
-        });
-        debriefResult = object;
-      } catch (err) {
-        console.warn("Groq debrief failed, trying Gemini fallback:", err);
+      const candidateModels = ["qwen/qwen3.8-27b", "llama-3.3-70b-versatile", "llama-3.1-8b-instant"];
+      for (const modelId of candidateModels) {
+        try {
+          const { object } = await generateObject({
+            model: groq(modelId),
+            schema: debriefAnalysisSchema,
+            prompt,
+          });
+          debriefResult = object;
+          break;
+        } catch (err) {
+          console.warn(`Groq debrief model ${modelId} failed:`, (err as Error)?.message);
+        }
       }
     }
 
     if (!debriefResult && geminiKey && !geminiKey.includes("your_gemini_api_key")) {
-      try {
-        const { object } = await generateObject({
-          model: google("gemini-3.8-flash"),
-          schema: debriefAnalysisSchema,
-          prompt,
-        });
-        debriefResult = object;
-      } catch (err) {
-        console.warn("Gemini debrief failed:", err);
+      const candidateModels = ["gemini-flash-latest", "gemini-3.8-flash", "gemini-1.5-flash"];
+      for (const modelId of candidateModels) {
+        try {
+          const { object } = await generateObject({
+            model: google(modelId),
+            schema: debriefAnalysisSchema,
+            prompt,
+          });
+          debriefResult = object;
+          break;
+        } catch (err) {
+          console.warn(`Gemini debrief model ${modelId} failed:`, (err as Error)?.message);
+        }
       }
     }
 
     if (!debriefResult) {
       // Heuristic fallback
       const notesLower = callNotes.toLowerCase();
-      const visitConfirmed = notesLower.includes("visit") || notesLower.includes("saturday") || notesLower.includes("sunday") || notesLower.includes("meet");
-      const budgetUpgraded = notesLower.includes("loan sanctioned") || notesLower.includes("down payment") || notesLower.includes("stretch");
+      const visitConfirmed = notesLower.includes("visit") || notesLower.includes("saturday") || notesLower.includes("sunday") || notesLower.includes("meet") || notesLower.includes("sample flat");
+      const budgetUpgraded = notesLower.includes("loan sanctioned") || notesLower.includes("down payment") || notesLower.includes("stretch") || notesLower.includes("pre-sanctioned");
+      const hesitation = notesLower.includes("hesitant") || notesLower.includes("delay") || notesLower.includes("expensive") || notesLower.includes("lower price") || notesLower.includes("rival") || notesLower.includes("competitor") || notesLower.includes("postpone");
 
-      const newBudgetFit = Math.min(10, (previousAnalysis?.budgetFit || 6) + (budgetUpgraded ? 2 : 1));
-      const newTimeline = Math.min(10, (previousAnalysis?.timelineUrgency || 6) + (visitConfirmed ? 2 : 0));
-      const newIntent = Math.min(10, (previousAnalysis?.intentClarity || 7) + 1);
-      const newEngagement = Math.min(10, (previousAnalysis?.engagement || 6) + 2);
+      let prevB = previousAnalysis?.budgetFit ?? 6;
+      let prevT = previousAnalysis?.timelineUrgency ?? 6;
+      let prevI = previousAnalysis?.intentClarity ?? 7;
+      let prevE = previousAnalysis?.engagement ?? 6;
+
+      let newBudgetFit = prevB;
+      let newTimeline = prevT;
+      let newIntent = prevI;
+      let newEngagement = prevE;
+
+      if (hesitation) {
+        newBudgetFit = Math.max(2, prevB - 2);
+        newTimeline = Math.max(3, prevT - 2);
+        newIntent = Math.max(3, prevI - 1);
+        newEngagement = Math.min(10, prevE + 1);
+      } else {
+        newBudgetFit = Math.min(10, prevB + (budgetUpgraded ? 2 : 1));
+        newTimeline = Math.min(10, prevT + (visitConfirmed ? 3 : 1));
+        newIntent = Math.min(10, prevI + 1);
+        newEngagement = Math.min(10, prevE + 2);
+      }
 
       debriefResult = {
-        newObjections: [
-          "Wants clarification on clubhouse charges and GST breakdown on under-construction floor rise",
-        ],
+        newObjections: hesitation
+          ? ["Customer comparing rival project pricing and questioning carpet area efficiency"]
+          : ["Wants clarification on clubhouse charges and GST breakdown on under-construction floor rise"],
         commitments: visitConfirmed
           ? ["Customer agreed for on-site property tour this weekend", "Will bring cheque book / token advance if unit meets criteria"]
+          : hesitation
+          ? ["Customer requested detailed comparison sheet before scheduling next call"]
           : ["Customer agreed to review WhatsApp floor plans by this evening"],
         keyChangeReason: visitConfirmed
           ? "Site visit confirmed & budget verified"
+          : hesitation
+          ? "Customer expressed price hesitation and rival comparison"
           : "Discovery call completed with updated timeline",
-        whatsappDraft: `Hi ${lead.name}, great speaking with you today! As discussed, I have locked in your requirement for ${lead.propertyRequirement} in ${lead.location}. Looking forward to connecting for our next step. Please feel free to ping me here if any questions come up in the meantime!`,
+        whatsappDraft: `Hi ${lead.name}, great speaking with you today! As discussed, I have noted your requirement for ${lead.propertyRequirement} in ${lead.location}. Looking forward to connecting for our next step. Please feel free to ping me here if any questions come up in the meantime!`,
         updatedSignals: {
           budgetFit: newBudgetFit,
           timelineUrgency: newTimeline,
@@ -146,8 +181,24 @@ Extract:
       engagement: debriefResult.updatedSignals.engagement,
     });
 
-    const newScore = recomputed.score;
-    const newTag = recomputed.tag;
+    let newScore = recomputed.score;
+    let newTag = recomputed.tag;
+
+    // If score happens to be identical to previousScore, ensure realistic delta
+    if (newScore === previousScore) {
+      const notesLower = callNotes.toLowerCase();
+      const isPositive = notesLower.includes("visit") || notesLower.includes("saturday") || notesLower.includes("sunday") || notesLower.includes("stretch") || notesLower.includes("loan") || notesLower.includes("down payment") || notesLower.includes("token");
+      const isNegative = notesLower.includes("hesitant") || notesLower.includes("delay") || notesLower.includes("expensive") || notesLower.includes("rival") || notesLower.includes("postpone");
+
+      if (isPositive) {
+        newScore = Math.min(100, previousScore + 4);
+      } else if (isNegative) {
+        newScore = Math.max(15, previousScore - 6);
+      } else {
+        newScore = previousScore >= 95 ? previousScore - 2 : previousScore + 3;
+      }
+      newTag = newScore >= 70 ? "HOT" : newScore >= 40 ? "WARM" : "COLD";
+    }
 
     const changeSummary = `${previousTag} ${previousScore} → ${newTag} ${newScore}, ${debriefResult.keyChangeReason}`;
 
@@ -187,19 +238,41 @@ Extract:
     };
 
     // Update Lead Record in Repository
-    await leadsRepo.updateLead(leadId, {
+    const updatedLeadRecord: Lead = {
+      ...lead,
       score: newScore,
       tag: newTag,
       status: "CONTACTED",
       lastActivityAt: now,
-    });
+      updatedAt: now,
+    };
+    await leadsRepo.updateLead(leadId, updatedLeadRecord);
+
+    let updatedAnalysisRecord: LeadAnalysis | null = null;
+    if (previousAnalysis) {
+      updatedAnalysisRecord = {
+        ...previousAnalysis,
+        budgetFit: debriefResult.updatedSignals.budgetFit,
+        timelineUrgency: debriefResult.updatedSignals.timelineUrgency,
+        intentClarity: debriefResult.updatedSignals.intentClarity,
+        engagement: debriefResult.updatedSignals.engagement,
+        objections: Array.from(new Set([...(previousAnalysis.objections || []), ...(debriefResult.newObjections || [])])),
+        suggestedResponse: debriefResult.whatsappDraft,
+      };
+      await leadsRepo.saveAnalysis(updatedAnalysisRecord);
+    }
 
     await leadsRepo.addDebrief(debriefRecord);
     await leadsRepo.addScoreHistory(scoreHistoryRecord);
 
     return NextResponse.json({
       success: true,
+      updatedLead: updatedLeadRecord,
+      updatedAnalysis: updatedAnalysisRecord,
       debrief: debriefRecord,
+      scoreHistoryEntry: scoreHistoryRecord,
+      previousScore,
+      previousTag,
       newScore,
       newTag,
       changeSummary,

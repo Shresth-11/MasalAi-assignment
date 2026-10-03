@@ -1,7 +1,9 @@
-import { Lead, LeadAnalysis } from "@/db/schema";
+import { Lead, LeadAnalysis, CallDebrief, ScoreHistoryEntry } from "@/db/schema";
 
 const STORAGE_LEADS_KEY = "masal_local_leads";
 const STORAGE_ANALYSES_KEY = "masal_local_analyses";
+const STORAGE_DEBRIEFS_KEY = "masal_local_debriefs";
+const STORAGE_HISTORY_KEY = "masal_local_score_history";
 
 /**
  * Retrieves all user-created or updated leads stored locally in the browser.
@@ -85,6 +87,78 @@ export function saveLocalAnalysis(leadId: string, analysis: LeadAnalysis): void 
 }
 
 /**
+ * Retrieves stored debrief records for a given lead from localStorage.
+ */
+export function getLocalDebriefs(leadId: string): CallDebrief[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(STORAGE_DEBRIEFS_KEY);
+    if (!raw) return [];
+    const map = JSON.parse(raw);
+    const list = map[leadId] || [];
+    return list.map((d: any) => ({
+      ...d,
+      createdAt: d.createdAt ? new Date(d.createdAt) : new Date(),
+    }));
+  } catch (e) {
+    console.warn("Failed to parse local debriefs:", e);
+    return [];
+  }
+}
+
+/**
+ * Saves a new debrief record for a given lead in localStorage.
+ */
+export function saveLocalDebrief(leadId: string, debrief: CallDebrief): void {
+  if (typeof window === "undefined") return;
+  try {
+    const raw = localStorage.getItem(STORAGE_DEBRIEFS_KEY);
+    const map = raw ? JSON.parse(raw) : {};
+    const existing = map[leadId] || [];
+    map[leadId] = [debrief, ...existing.filter((d: any) => d.id !== debrief.id)];
+    localStorage.setItem(STORAGE_DEBRIEFS_KEY, JSON.stringify(map));
+  } catch (e) {
+    console.warn("Failed to save local debrief:", e);
+  }
+}
+
+/**
+ * Retrieves stored score history entries for a given lead from localStorage.
+ */
+export function getLocalScoreHistory(leadId: string): ScoreHistoryEntry[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(STORAGE_HISTORY_KEY);
+    if (!raw) return [];
+    const map = JSON.parse(raw);
+    const list = map[leadId] || [];
+    return list.map((h: any) => ({
+      ...h,
+      createdAt: h.createdAt ? new Date(h.createdAt) : new Date(),
+    }));
+  } catch (e) {
+    console.warn("Failed to parse local score history:", e);
+    return [];
+  }
+}
+
+/**
+ * Saves a new score history entry for a given lead in localStorage.
+ */
+export function saveLocalScoreHistory(leadId: string, entry: ScoreHistoryEntry): void {
+  if (typeof window === "undefined") return;
+  try {
+    const raw = localStorage.getItem(STORAGE_HISTORY_KEY);
+    const map = raw ? JSON.parse(raw) : {};
+    const existing = map[leadId] || [];
+    map[leadId] = [entry, ...existing.filter((h: any) => h.id !== entry.id)];
+    localStorage.setItem(STORAGE_HISTORY_KEY, JSON.stringify(map));
+  } catch (e) {
+    console.warn("Failed to save local score history:", e);
+  }
+}
+
+/**
  * Clears all locally stored leads and analyses.
  */
 export function clearLocalLeads(): void {
@@ -92,6 +166,8 @@ export function clearLocalLeads(): void {
   try {
     localStorage.removeItem(STORAGE_LEADS_KEY);
     localStorage.removeItem(STORAGE_ANALYSES_KEY);
+    localStorage.removeItem(STORAGE_DEBRIEFS_KEY);
+    localStorage.removeItem(STORAGE_HISTORY_KEY);
     window.dispatchEvent(new CustomEvent("masal_leads_updated"));
   } catch (e) {
     console.warn("Failed to clear local leads:", e);
