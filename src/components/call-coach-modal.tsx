@@ -1,9 +1,10 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { Lead } from "@/db/schema";
+import { Lead, LeadAnalysis } from "@/db/schema";
 import { Button } from "./ui/button";
 import { StatusBadge } from "./ui/badge";
+import { saveLocalLead } from "@/lib/local-leads";
 import {
   Phone,
   Mic,
@@ -23,6 +24,7 @@ interface CallCoachModalProps {
   isOpen: boolean;
   onClose: () => void;
   lead: Lead;
+  analysis?: LeadAnalysis | null;
   onDebriefComplete: () => void;
 }
 
@@ -41,7 +43,7 @@ const SAMPLE_DEBRIEFS = [
   },
 ];
 
-export function CallCoachModal({ isOpen, onClose, lead, onDebriefComplete }: CallCoachModalProps) {
+export function CallCoachModal({ isOpen, onClose, lead, analysis, onDebriefComplete }: CallCoachModalProps) {
   const [activeTab, setActiveTab] = useState<"pre-call" | "post-call">("pre-call");
 
   // Pre-Call Talk Track State
@@ -137,7 +139,11 @@ export function CallCoachModal({ isOpen, onClose, lead, onDebriefComplete }: Cal
       const res = await fetch("/api/coach/talk-track", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ leadId: lead.id }),
+        body: JSON.stringify({
+          leadId: lead.id,
+          leadFallback: lead,
+          analysisFallback: analysis,
+        }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -201,11 +207,19 @@ export function CallCoachModal({ isOpen, onClose, lead, onDebriefComplete }: Cal
       const res = await fetch("/api/coach/debrief", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ leadId: lead.id, callNotes }),
+        body: JSON.stringify({
+          leadId: lead.id,
+          callNotes,
+          leadFallback: lead,
+          analysisFallback: analysis,
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
         throw new Error(data.error || "Failed to process call debrief");
+      }
+      if (data.updatedLead) {
+        saveLocalLead(data.updatedLead);
       }
       setDebriefResult(data);
       setCheckedCommitments({});

@@ -6,6 +6,7 @@ import { StatusBadge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { LeadChat } from "./lead-chat";
 import { CallCoachModal } from "./call-coach-modal";
+import { getLocalLeads, getLocalAnalysis, saveLocalLead } from "@/lib/local-leads";
 import {
   ArrowLeft,
   Copy,
@@ -40,17 +41,46 @@ export function LeadDetail({ leadId, onBack, isSplitView = false }: LeadDetailPr
   const [activeSideTab, setActiveSideTab] = useState<"chat" | "history">("chat");
 
   const fetchLeadData = async () => {
+    setIsLoading(true);
     try {
       const res = await fetch(`/api/leads/${leadId}`);
-      if (!res.ok) throw new Error("Failed to load lead details");
-      const data = await res.json();
-      setLead(data.lead);
-      setAnalysis(data.analysis);
-      setMessages(data.messages || []);
-      setDebriefs(data.debriefs || []);
-      setScoreHistory(data.scoreHistory || []);
+      if (res.ok) {
+        const data = await res.json();
+        setLead(data.lead);
+        setAnalysis(data.analysis);
+        setMessages(data.messages || []);
+        setDebriefs(data.debriefs || []);
+        setScoreHistory(data.scoreHistory || []);
+        return;
+      }
     } catch (err) {
-      console.error(err);
+      console.warn("API lead fetch failed, checking local storage:", err);
+    }
+
+    // Fallback to local storage
+    try {
+      const localLeads = getLocalLeads();
+      const found = localLeads.find((l) => l.id === leadId);
+      if (found) {
+        setLead(found);
+        const foundAnalysis = getLocalAnalysis(leadId);
+        setAnalysis(foundAnalysis);
+        setMessages([]);
+        setDebriefs([]);
+        setScoreHistory([
+          {
+            id: "hist_" + found.id,
+            leadId: found.id,
+            score: found.score,
+            tag: found.tag,
+            reason: "Initial AI analysis",
+            createdAt: found.createdAt,
+          },
+        ]);
+        return;
+      }
+    } catch (e) {
+      console.error("Local storage fallback error:", e);
     } finally {
       setIsLoading(false);
     }
@@ -79,6 +109,10 @@ export function LeadDetail({ leadId, onBack, isSplitView = false }: LeadDetailPr
         }),
       });
       if (res.ok) {
+        const data = await res.json();
+        if (data.lead) {
+          saveLocalLead(data.lead, data.analysis);
+        }
         await fetchLeadData();
       }
     } catch (err) {
@@ -411,7 +445,7 @@ export function LeadDetail({ leadId, onBack, isSplitView = false }: LeadDetailPr
           {/* Tab Content */}
           <div className="flex-1 overflow-hidden min-h-0">
             {activeSideTab === "chat" ? (
-              <LeadChat leadId={lead.id} initialMessages={messages} />
+              <LeadChat leadId={lead.id} lead={lead} analysis={analysis} initialMessages={messages} />
             ) : (
               <div className="p-3.5 overflow-y-auto h-full space-y-3 text-xs">
                 {scoreHistory.length === 0 && debriefs.length === 0 ? (
@@ -479,6 +513,7 @@ export function LeadDetail({ leadId, onBack, isSplitView = false }: LeadDetailPr
           isOpen={isCallCoachOpen}
           onClose={() => setIsCallCoachOpen(false)}
           lead={lead}
+          analysis={analysis}
           onDebriefComplete={() => {
             fetchLeadData();
           }}

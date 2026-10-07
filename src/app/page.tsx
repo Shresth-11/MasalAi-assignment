@@ -10,6 +10,7 @@ export default function HomePage() {
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
   const [isNewLeadModalOpen, setIsNewLeadModalOpen] = useState<boolean>(false);
   const [isSplitMode, setIsSplitMode] = useState<boolean>(true);
+  const [refreshKey, setRefreshKey] = useState<number>(0);
 
   const handleLeadsLoaded = (firstLeadId?: string) => {
     if (!selectedLeadId && firstLeadId) {
@@ -67,6 +68,7 @@ export default function HomePage() {
                 onOpenNewLeadModal={() => setIsNewLeadModalOpen(true)}
                 onLeadsLoaded={handleLeadsLoaded}
                 compactMode={true}
+                refreshKey={refreshKey}
               />
             </div>
 
@@ -99,6 +101,7 @@ export default function HomePage() {
             onOpenNewLeadModal={() => setIsNewLeadModalOpen(true)}
             onLeadsLoaded={handleLeadsLoaded}
             compactMode={false}
+            refreshKey={refreshKey}
           />
         )}
       </div>
@@ -110,6 +113,7 @@ export default function HomePage() {
           onClose={() => setIsNewLeadModalOpen(false)}
           onSuccess={(newLeadId) => {
             setSelectedLeadId(newLeadId);
+            setRefreshKey((prev) => prev + 1);
           }}
         />
       )}

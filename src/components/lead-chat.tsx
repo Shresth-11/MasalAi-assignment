@@ -2,12 +2,14 @@
 
 import React, { useRef, useEffect, useState } from "react";
 import { useChat } from "ai/react";
-import { LeadMessage } from "@/db/schema";
+import { Lead, LeadAnalysis, LeadMessage } from "@/db/schema";
 import { Button } from "./ui/button";
 import { Send, Copy, Check, MessageSquare } from "lucide-react";
 
 interface LeadChatProps {
   leadId: string;
+  lead?: Lead | null;
+  analysis?: LeadAnalysis | null;
   initialMessages?: LeadMessage[];
 }
 
@@ -18,10 +20,14 @@ const QUICK_CHIPS = [
   "How to handle their price objection?",
 ];
 
-export function LeadChat({ leadId, initialMessages = [] }: LeadChatProps) {
+export function LeadChat({ leadId, lead, analysis, initialMessages = [] }: LeadChatProps) {
   const { messages, input, handleInputChange, handleSubmit, append, isLoading, error } = useChat({
     api: "/api/chat",
-    body: { leadId },
+    body: {
+      leadId,
+      leadFallback: lead,
+      analysisFallback: analysis,
+    },
     initialMessages: initialMessages.map((m) => ({
       id: m.id,
       role: m.role as "user" | "assistant",

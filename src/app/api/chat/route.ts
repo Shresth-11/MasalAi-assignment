@@ -3,19 +3,29 @@ import { streamText } from "ai";
 import { groq } from "@ai-sdk/groq";
 import { google } from "@ai-sdk/google";
 import { leadsRepo } from "@/lib/leads-repo";
+import { Lead, LeadAnalysis } from "@/db/schema";
 
 export async function POST(req: NextRequest) {
   try {
-    const { messages, leadId } = await req.json();
+    const { messages, leadId, leadFallback, analysisFallback } = await req.json();
 
     if (!leadId) {
       return new Response("Missing leadId", { status: 400 });
     }
 
-    const [lead, analysis] = await Promise.all([
+    let [lead, analysis] = await Promise.all([
       leadsRepo.getLeadById(leadId),
       leadsRepo.getAnalysisByLeadId(leadId),
     ]);
+
+    if (!lead && leadFallback) {
+      lead = leadFallback as Lead;
+      await leadsRepo.createLead(lead as Lead);
+      if (analysisFallback) {
+        analysis = analysisFallback as LeadAnalysis;
+        await leadsRepo.saveAnalysis(analysis as LeadAnalysis);
+      }
+    }
 
     if (!lead) {
       return new Response("Lead not found", { status: 404 });

@@ -5,6 +5,7 @@ import { Lead } from "@/db/schema";
 import { StatusBadge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Search, Plus, RotateCw } from "lucide-react";
+import { getLocalLeads, clearLocalLeads } from "@/lib/local-leads";
 
 interface LeadListProps {
   onSelectLead: (leadId: string) => void;
@@ -12,6 +13,7 @@ interface LeadListProps {
   selectedLeadId?: string | null;
   onLeadsLoaded?: (firstLeadId?: string) => void;
   compactMode?: boolean;
+  refreshKey?: number;
 }
 
 export function LeadList({
@@ -20,7 +22,9 @@ export function LeadList({
   selectedLeadId,
   onLeadsLoaded,
   compactMode = false,
+  refreshKey = 0,
 }: LeadListProps) {
+  const [allLeads, setAllLeads] = useState<Lead[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [selectedTag, setSelectedTag] = useState<string>("ALL");
   const [showFollowUpOnly, setShowFollowUpOnly] = useState<boolean>(false);
@@ -40,36 +44,96 @@ export function LeadList({
   const fetchLeads = useCallback(async () => {
     setIsLoading(true);
     try {
-      const params = new URLSearchParams();
-      if (selectedTag !== "ALL") params.set("tag", selectedTag);
-      if (showFollowUpOnly) params.set("followUp", "true");
-      if (searchQuery.trim()) params.set("search", searchQuery.trim());
-
-      const res = await fetch(`/api/leads?${params.toString()}`);
-      const data = await res.json();
-      if (res.ok) {
-        const fetchedLeads: Lead[] = data.leads || [];
-        setLeads(fetchedLeads);
-        if (data.counts) setCounts(data.counts);
-
-        if (fetchedLeads.length > 0 && onLeadsLoaded) {
-          onLeadsLoaded(fetchedLeads[0].id);
+      let serverLeads: Lead[] = [];
+      try {
+        const res = await fetch("/api/leads");
+        if (res.ok) {
+          const data = await res.json();
+          serverLeads = data.leads || [];
         }
+      } catch (err) {
+        console.warn("Server leads fetch error:", err);
+      }
+
+      const localLeads = getLocalLeads();
+
+      // Deduplicate: local leads override server leads by id, new leads take priority
+      const leadMap = new Map<string, Lead>();
+      for (const lead of localLeads) {
+        leadMap.set(lead.id, lead);
+      }
+      for (const lead of serverLeads) {
+        if (!leadMap.has(lead.id)) {
+          leadMap.set(lead.id, lead);
+        }
+      }
+
+      const combined = Array.from(leadMap.values()).sort((a, b) => b.score - a.score);
+      setAllLeads(combined);
+
+      const twoDaysAgo = Date.now() - 2 * 24 * 60 * 60 * 1000;
+      setCounts({
+        all: combined.length,
+        hot: combined.filter((l) => l.tag === "HOT").length,
+        warm: combined.filter((l) => l.tag === "WARM").length,
+        cold: combined.filter((l) => l.tag === "COLD").length,
+        followUpDue: combined.filter((l) => new Date(l.lastActivityAt).getTime() < twoDaysAgo).length,
+      });
+
+      if (!selectedLeadId && combined.length > 0 && onLeadsLoaded) {
+        onLeadsLoaded(combined[0].id);
       }
     } catch (err) {
       console.error("Error fetching leads:", err);
     } finally {
       setIsLoading(false);
     }
-  }, [selectedTag, showFollowUpOnly, searchQuery, onLeadsLoaded]);
+  }, [onLeadsLoaded, selectedLeadId]);
 
   useEffect(() => {
     fetchLeads();
+  }, [fetchLeads, refreshKey]);
+
+  useEffect(() => {
+    const handleUpdate = () => {
+      fetchLeads();
+    };
+    window.addEventListener("masal_leads_updated", handleUpdate);
+    return () => window.removeEventListener("masal_leads_updated", handleUpdate);
   }, [fetchLeads]);
+
+  // Client-side instant filtering across master leads
+  useEffect(() => {
+    const twoDaysAgo = Date.now() - 2 * 24 * 60 * 60 * 1000;
+    let filtered = allLeads;
+
+    if (selectedTag !== "ALL") {
+      filtered = filtered.filter((l) => l.tag === selectedTag);
+    }
+
+    if (showFollowUpOnly) {
+      filtered = filtered.filter((l) => new Date(l.lastActivityAt).getTime() < twoDaysAgo);
+    }
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      filtered = filtered.filter(
+        (l) =>
+          l.name.toLowerCase().includes(q) ||
+          l.location.toLowerCase().includes(q) ||
+          l.propertyRequirement.toLowerCase().includes(q) ||
+          l.budget.toLowerCase().includes(q) ||
+          (l.phone && l.phone.toLowerCase().includes(q))
+      );
+    }
+
+    setLeads(filtered);
+  }, [allLeads, selectedTag, showFollowUpOnly, searchQuery]);
 
   const handleLoadDemoLeads = async () => {
     setIsSeeding(true);
     try {
+      clearLocalLeads();
       const res = await fetch("/api/leads/demo", { method: "POST" });
       if (res.ok) {
         await fetchLeads();

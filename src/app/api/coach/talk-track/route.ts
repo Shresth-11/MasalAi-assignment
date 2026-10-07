@@ -4,6 +4,7 @@ import { groq } from "@ai-sdk/groq";
 import { google } from "@ai-sdk/google";
 import { z } from "zod";
 import { leadsRepo } from "@/lib/leads-repo";
+import { Lead, LeadAnalysis } from "@/db/schema";
 
 const talkTrackSchema = z.object({
   callOpener: z
@@ -23,15 +24,22 @@ const talkTrackSchema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
-    const { leadId } = await req.json();
+    const { leadId, leadFallback, analysisFallback } = await req.json();
     if (!leadId) {
       return NextResponse.json({ error: "Missing leadId" }, { status: 400 });
     }
 
-    const [lead, analysis] = await Promise.all([
+    let [lead, analysis] = await Promise.all([
       leadsRepo.getLeadById(leadId),
       leadsRepo.getAnalysisByLeadId(leadId),
     ]);
+
+    if (!lead && leadFallback) {
+      lead = leadFallback as Lead;
+      analysis = (analysisFallback as LeadAnalysis) || null;
+      await leadsRepo.createLead(lead as Lead);
+      if (analysis) await leadsRepo.saveAnalysis(analysis as LeadAnalysis);
+    }
 
     if (!lead) {
       return NextResponse.json({ error: "Lead not found" }, { status: 404 });

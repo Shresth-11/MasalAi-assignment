@@ -5,7 +5,7 @@ import { google } from "@ai-sdk/google";
 import { z } from "zod";
 import { leadsRepo } from "@/lib/leads-repo";
 import { calculateLeadScore } from "@/lib/scoring";
-import { CallDebrief, ScoreHistoryEntry } from "@/db/schema";
+import { CallDebrief, ScoreHistoryEntry, Lead, LeadAnalysis } from "@/db/schema";
 
 const debriefAnalysisSchema = z.object({
   newObjections: z
@@ -30,16 +30,23 @@ const debriefAnalysisSchema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
-    const { leadId, callNotes } = await req.json();
+    const { leadId, callNotes, leadFallback, analysisFallback } = await req.json();
 
     if (!leadId || !callNotes?.trim()) {
       return NextResponse.json({ error: "leadId and callNotes are required" }, { status: 400 });
     }
 
-    const [lead, previousAnalysis] = await Promise.all([
+    let [lead, previousAnalysis] = await Promise.all([
       leadsRepo.getLeadById(leadId),
       leadsRepo.getAnalysisByLeadId(leadId),
     ]);
+
+    if (!lead && leadFallback) {
+      lead = leadFallback as Lead;
+      previousAnalysis = (analysisFallback as LeadAnalysis) || null;
+      await leadsRepo.createLead(lead as Lead);
+      if (previousAnalysis) await leadsRepo.saveAnalysis(previousAnalysis as LeadAnalysis);
+    }
 
     if (!lead) {
       return NextResponse.json({ error: "Lead not found" }, { status: 404 });

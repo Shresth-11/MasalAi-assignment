@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { Button } from "./ui/button";
 import { X, AlertCircle } from "lucide-react";
+import { saveLocalLead } from "@/lib/local-leads";
 
 interface LeadIntakeModalProps {
   isOpen: boolean;
@@ -112,6 +113,21 @@ export function LeadIntakeModal({ isOpen, onClose, onSuccess }: LeadIntakeModalP
 
       clearTimeout(stepTimer1);
       clearTimeout(stepTimer2);
+
+      if (data.lead) {
+        saveLocalLead(data.lead, data.analysis);
+      }
+
+      setFormData({
+        name: "",
+        phone: "",
+        location: "Gurugram, Golf Course Ext Road",
+        propertyRequirement: "3 BHK High-rise Apartment",
+        budget: "₹2.5 Cr - ₹3.0 Cr",
+        buyingTimeline: "Within 30-45 days",
+        customerMessage: "",
+      });
+
       onSuccess(data.lead.id);
       onClose();
     } catch (err: unknown) {
