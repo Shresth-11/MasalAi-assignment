@@ -82,7 +82,8 @@ export function CallCoachModal({ isOpen, onClose, lead, analysis, onDebriefCompl
     whatsappUrl: string;
   } | null>(null);
   const [debriefError, setDebriefError] = useState<string | null>(null);
-
+  const [speechLang, setSpeechLang] = useState<"en-IN" | "hi-IN">("en-IN");
+  const baseNotesRef = useRef<string>("");
   const recognitionRef = useRef<any>(null);
 
   // Web Speech API
@@ -94,15 +95,27 @@ export function CallCoachModal({ isOpen, onClose, lead, analysis, onDebriefCompl
         const recognition = new SpeechRecognition();
         recognition.continuous = true;
         recognition.interimResults = true;
-        recognition.lang = "en-IN";
+        recognition.lang = speechLang;
 
         recognition.onresult = (event: any) => {
-          let currentTranscript = "";
-          for (let i = event.resultIndex; i < event.results.length; i++) {
-            currentTranscript += event.results[i][0].transcript;
+          let interimTranscript = "";
+          let finalTranscript = "";
+
+          for (let i = 0; i < event.results.length; i++) {
+            const result = event.results[i];
+            if (result.isFinal) {
+              finalTranscript += result[0].transcript + " ";
+            } else {
+              interimTranscript += result[0].transcript;
+            }
           }
-          if (currentTranscript.trim()) {
-            setCallNotes((prev) => (prev ? prev + " " + currentTranscript : currentTranscript));
+
+          const currentSessionSpeech = (finalTranscript + interimTranscript).trim();
+          const base = baseNotesRef.current;
+          if (base) {
+            setCallNotes(base + " " + currentSessionSpeech);
+          } else {
+            setCallNotes(currentSessionSpeech);
           }
         };
 
@@ -194,10 +207,16 @@ export function CallCoachModal({ isOpen, onClose, lead, analysis, onDebriefCompl
   const toggleDictation = () => {
     if (!recognitionRef.current) return;
     if (isDictating) {
-      recognitionRef.current.stop();
+      try {
+        recognitionRef.current.stop();
+      } catch (err) {
+        console.warn("Speech recognition stop error:", err);
+      }
       setIsDictating(false);
     } else {
       try {
+        baseNotesRef.current = callNotes.trim();
+        recognitionRef.current.lang = speechLang;
         recognitionRef.current.start();
         setIsDictating(true);
       } catch (err) {
@@ -433,18 +452,53 @@ export function CallCoachModal({ isOpen, onClose, lead, analysis, onDebriefCompl
                         Call notes
                       </label>
                       {isSpeechSupported && (
-                        <button
-                          type="button"
-                          onClick={toggleDictation}
-                          className={`flex items-center gap-1 px-2 py-0.5 rounded-sm text-xs font-medium border transition-colors ${
-                            isDictating
-                              ? "bg-rose-50 border-rose-300 text-rose-700"
-                              : "bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200"
-                          }`}
-                        >
-                          {isDictating ? <MicOff className="h-3 w-3 text-rose-600" /> : <Mic className="h-3 w-3 text-slate-600" />}
-                          <span>{isDictating ? "Listening..." : "Dictate"}</span>
-                        </button>
+                        <div className="flex items-center gap-1.5">
+                          {/* Language selector toggle */}
+                          <div className="flex items-center rounded-sm border border-slate-200 bg-white p-0.5 text-[10px]">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSpeechLang("en-IN");
+                                if (recognitionRef.current) recognitionRef.current.lang = "en-IN";
+                              }}
+                              className={`px-1.5 py-0.2 rounded-sm font-medium transition-colors ${
+                                speechLang === "en-IN"
+                                  ? "bg-slate-900 text-white"
+                                  : "text-slate-500 hover:text-slate-800"
+                              }`}
+                            >
+                              EN
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSpeechLang("hi-IN");
+                                if (recognitionRef.current) recognitionRef.current.lang = "hi-IN";
+                              }}
+                              className={`px-1.5 py-0.2 rounded-sm font-medium transition-colors ${
+                                speechLang === "hi-IN"
+                                  ? "bg-slate-900 text-white"
+                                  : "text-slate-500 hover:text-slate-800"
+                              }`}
+                              title="Hindi / Hinglish speech recognition"
+                            >
+                              Hinglish
+                            </button>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={toggleDictation}
+                            className={`flex items-center gap-1 px-2 py-0.5 rounded-sm text-xs font-medium border transition-colors ${
+                              isDictating
+                                ? "bg-rose-50 border-rose-300 text-rose-700 animate-pulse"
+                                : "bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200"
+                            }`}
+                          >
+                            {isDictating ? <MicOff className="h-3 w-3 text-rose-600" /> : <Mic className="h-3 w-3 text-slate-600" />}
+                            <span>{isDictating ? "Stop listening" : "Dictate"}</span>
+                          </button>
+                        </div>
                       )}
                     </div>
 
