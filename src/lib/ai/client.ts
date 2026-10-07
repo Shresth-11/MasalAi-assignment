@@ -19,7 +19,7 @@ export async function analyzeLeadWithAi(input: LeadIntakeInput): Promise<Analysi
 
   // 1. Try Groq (Primary Provider)
   if (groqApiKey && !groqApiKey.includes("your_groq_api_key")) {
-    const groqCandidateModels = ["llama-3.3-70b-versatile", "qwen/qwen3.8-27b", "llama-3.1-8b-instant"];
+    const groqCandidateModels = ["qwen/qwen3.8-27b", "llama-3.3-70b-versatile", "llama-3.1-8b-instant"];
     for (const modelId of groqCandidateModels) {
       try {
         const groqModel = groq(modelId);
@@ -62,7 +62,7 @@ export async function analyzeLeadWithAi(input: LeadIntakeInput): Promise<Analysi
 
   // 2. Try Gemini (Automatic Fallback)
   if (geminiApiKey && !geminiApiKey.includes("your_gemini_api_key")) {
-    const geminiCandidateModels = ["gemini-3.8-flash", "gemini-1.5-flash", "gemini-flash-latest"];
+    const geminiCandidateModels = ["gemini-3.8-flash", "gemini-flash-latest", "gemini-1.5-flash"];
     for (const modelId of geminiCandidateModels) {
       try {
         console.log(`[AI Engine] Engaging Gemini fallback with ${modelId}...`);

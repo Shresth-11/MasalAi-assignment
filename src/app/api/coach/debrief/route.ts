@@ -77,7 +77,7 @@ Extract:
     if (groqKey && !groqKey.includes("your_groq_api_key")) {
       try {
         const { object } = await generateObject({
-          model: groq("llama-3.3-70b-versatile"),
+          model: groq("qwen/qwen3.8-27b"),
           schema: debriefAnalysisSchema,
           prompt,
         });
@@ -90,7 +90,7 @@ Extract:
     if (!debriefResult && geminiKey && !geminiKey.includes("your_gemini_api_key")) {
       try {
         const { object } = await generateObject({
-          model: google("gemini-1.5-flash"),
+          model: google("gemini-3.8-flash"),
           schema: debriefAnalysisSchema,
           prompt,
         });

@@ -65,7 +65,7 @@ STYLE GUIDELINES:
     let modelInstance = null;
 
     if (groqApiKey && !groqApiKey.includes("your_groq_api_key")) {
-      const groqCandidates = ["llama-3.3-70b-versatile", "qwen/qwen3.8-27b", "llama-3.1-8b-instant"];
+      const groqCandidates = ["qwen/qwen3.8-27b", "llama-3.3-70b-versatile", "llama-3.1-8b-instant"];
       for (const mId of groqCandidates) {
         try {
           modelInstance = groq(mId);
@@ -77,7 +77,7 @@ STYLE GUIDELINES:
     }
 
     if (!modelInstance && geminiApiKey && !geminiApiKey.includes("your_gemini_api_key")) {
-      const geminiCandidates = ["gemini-3.8-flash", "gemini-1.5-flash", "gemini-flash-latest"];
+      const geminiCandidates = ["gemini-3.8-flash", "gemini-flash-latest", "gemini-1.5-flash"];
       for (const mId of geminiCandidates) {
         try {
           modelInstance = google(mId);
