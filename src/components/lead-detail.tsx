@@ -42,6 +42,8 @@ export function LeadDetail({ leadId, onBack, isSplitView = false }: LeadDetailPr
 
   const fetchLeadData = async () => {
     setIsLoading(true);
+    let loaded = false;
+
     try {
       const res = await fetch(`/api/leads/${leadId}`);
       if (res.ok) {
@@ -51,39 +53,40 @@ export function LeadDetail({ leadId, onBack, isSplitView = false }: LeadDetailPr
         setMessages(data.messages || []);
         setDebriefs(data.debriefs || []);
         setScoreHistory(data.scoreHistory || []);
-        return;
+        loaded = true;
       }
     } catch (err) {
       console.warn("API lead fetch failed, checking local storage:", err);
     }
 
-    // Fallback to local storage
-    try {
-      const localLeads = getLocalLeads();
-      const found = localLeads.find((l) => l.id === leadId);
-      if (found) {
-        setLead(found);
-        const foundAnalysis = getLocalAnalysis(leadId);
-        setAnalysis(foundAnalysis);
-        setMessages([]);
-        setDebriefs([]);
-        setScoreHistory([
-          {
-            id: "hist_" + found.id,
-            leadId: found.id,
-            score: found.score,
-            tag: found.tag,
-            reason: "Initial AI analysis",
-            createdAt: found.createdAt,
-          },
-        ]);
-        return;
+    if (!loaded) {
+      // Fallback to local storage
+      try {
+        const localLeads = getLocalLeads();
+        const found = localLeads.find((l) => l.id === leadId);
+        if (found) {
+          setLead(found);
+          const foundAnalysis = getLocalAnalysis(leadId);
+          setAnalysis(foundAnalysis);
+          setMessages([]);
+          setDebriefs([]);
+          setScoreHistory([
+            {
+              id: "hist_" + found.id,
+              leadId: found.id,
+              score: found.score,
+              tag: found.tag,
+              reason: "Initial AI analysis",
+              createdAt: found.createdAt,
+            },
+          ]);
+        }
+      } catch (e) {
+        console.error("Local storage fallback error:", e);
       }
-    } catch (e) {
-      console.error("Local storage fallback error:", e);
-    } finally {
-      setIsLoading(false);
     }
+
+    setIsLoading(false);
   };
 
   useEffect(() => {
