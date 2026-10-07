@@ -127,6 +127,21 @@ export function CallCoachModal({ isOpen, onClose, lead, analysis, onDebriefCompl
   }, []);
 
   useEffect(() => {
+    if (!isOpen) {
+      if (typeof window !== "undefined" && window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop();
+        } catch {}
+      }
+      setIsDictating(false);
+      setIsPlayingAudio(false);
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
     if (isOpen && activeTab === "pre-call" && !talkTrack && !isLoadingTalkTrack) {
       loadTalkTrack();
     }

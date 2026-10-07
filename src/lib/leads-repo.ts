@@ -1,6 +1,7 @@
 import { db, isDbConfigured, leads, leadAnalyses, leadMessages, callDebriefs, scoreHistory } from "@/db";
 import { Lead, LeadAnalysis, LeadMessage, CallDebrief, ScoreHistoryEntry } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
+import { DEMO_LEADS_DATA } from "@/lib/demo-leads";
 
 /**
  * In-memory fallback store ensuring standalone local development
@@ -18,7 +19,6 @@ class MemoryStore {
   }
 
   seedInitial() {
-    const { DEMO_LEADS_DATA } = require("@/lib/demo-leads");
     for (const bundle of DEMO_LEADS_DATA) {
       this.leads.set(bundle.lead.id, bundle.lead);
       this.analyses.set(bundle.analysis.leadId, bundle.analysis);

@@ -230,15 +230,15 @@ export function LeadDetail({ leadId, onBack, isSplitView = false }: LeadDetailPr
                 Recommended next action
               </span>
               <span className="text-[11px] text-slate-500">
-                Intent: <strong className="text-slate-700 font-medium">{analysis?.intent}</strong>
+                Intent: <strong className="text-slate-700 font-medium">{analysis?.intent || "General inquiry"}</strong>
               </span>
             </div>
             <p className="text-xs font-medium text-slate-900 leading-snug">
-              {analysis?.recommendedNextAction}
+              {analysis?.recommendedNextAction || "Reach out to qualify customer requirements and schedule discovery call."}
             </p>
             <div className="pt-2 border-t border-slate-200 flex items-center justify-between gap-2 text-xs">
               <span className="text-slate-600 truncate max-w-[280px]">
-                {analysis?.summary}
+                {analysis?.summary || lead.propertyRequirement}
               </span>
               <a
                 href={waUrl}
@@ -369,7 +369,7 @@ export function LeadDetail({ leadId, onBack, isSplitView = false }: LeadDetailPr
               </button>
             </div>
             <div className="p-2.5 rounded-sm bg-slate-50 border border-slate-200 text-slate-800 leading-relaxed text-xs">
-              "{analysis?.suggestedResponse}"
+              "{analysis?.suggestedResponse || `Hi ${lead.name}, thank you for reaching out regarding ${lead.propertyRequirement}. When is a good time for a brief call?`}"
             </div>
           </div>
 
@@ -381,12 +381,16 @@ export function LeadDetail({ leadId, onBack, isSplitView = false }: LeadDetailPr
                 Requirements
               </span>
               <ul className="space-y-1.5 text-slate-800">
-                {analysis?.keyRequirements?.map((req, idx) => (
-                  <li key={idx} className="flex items-start gap-1.5 text-xs">
-                    <span className="text-slate-400 font-mono mt-0.5">•</span>
-                    <span>{req}</span>
-                  </li>
-                ))}
+                {analysis?.keyRequirements && analysis.keyRequirements.length > 0 ? (
+                  analysis.keyRequirements.map((req, idx) => (
+                    <li key={idx} className="flex items-start gap-1.5 text-xs">
+                      <span className="text-slate-400 font-mono mt-0.5">•</span>
+                      <span>{req}</span>
+                    </li>
+                  ))
+                ) : (
+                  <li className="text-slate-400 italic text-xs">No specific requirements noted</li>
+                )}
               </ul>
             </div>
 
@@ -396,12 +400,16 @@ export function LeadDetail({ leadId, onBack, isSplitView = false }: LeadDetailPr
                 Customer hesitations
               </span>
               <ul className="space-y-1.5 text-slate-800">
-                {analysis?.objections?.map((obj, idx) => (
-                  <li key={idx} className="flex items-start gap-1.5 text-xs">
-                    <span className="text-amber-500 font-mono mt-0.5">•</span>
-                    <span>{obj}</span>
-                  </li>
-                ))}
+                {analysis?.objections && analysis.objections.length > 0 ? (
+                  analysis.objections.map((obj, idx) => (
+                    <li key={idx} className="flex items-start gap-1.5 text-xs">
+                      <span className="text-amber-500 font-mono mt-0.5">•</span>
+                      <span>{obj}</span>
+                    </li>
+                  ))
+                ) : (
+                  <li className="text-slate-400 italic text-xs">No customer hesitations flagged</li>
+                )}
               </ul>
             </div>
           </div>

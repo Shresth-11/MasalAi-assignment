@@ -40,6 +40,7 @@ export function LeadList({
   });
 
   const tableRef = useRef<HTMLTableElement>(null);
+  const hasAutoSelectedRef = useRef(false);
 
   const fetchLeads = useCallback(async () => {
     setIsLoading(true);
@@ -80,7 +81,8 @@ export function LeadList({
         followUpDue: combined.filter((l) => new Date(l.lastActivityAt).getTime() < twoDaysAgo).length,
       });
 
-      if (!selectedLeadId && combined.length > 0 && onLeadsLoaded) {
+      if (!hasAutoSelectedRef.current && combined.length > 0 && onLeadsLoaded) {
+        hasAutoSelectedRef.current = true;
         onLeadsLoaded(combined[0].id);
       }
     } catch (err) {
@@ -88,7 +90,7 @@ export function LeadList({
     } finally {
       setIsLoading(false);
     }
-  }, [onLeadsLoaded, selectedLeadId]);
+  }, [onLeadsLoaded]);
 
   useEffect(() => {
     fetchLeads();
@@ -172,7 +174,9 @@ export function LeadList({
   const isFollowUpDue = (dateStr: Date | string) => new Date(dateStr).getTime() < twoDaysAgo;
 
   const formatRelativeActivity = (dateStr: Date | string) => {
-    const diffHours = Math.round((Date.now() - new Date(dateStr).getTime()) / (1000 * 60 * 60));
+    const time = new Date(dateStr).getTime();
+    if (isNaN(time)) return "Recently";
+    const diffHours = Math.round((Date.now() - time) / (1000 * 60 * 60));
     if (diffHours < 1) return "Just now";
     if (diffHours < 24) return `${diffHours}h ago`;
     const diffDays = Math.round(diffHours / 24);
